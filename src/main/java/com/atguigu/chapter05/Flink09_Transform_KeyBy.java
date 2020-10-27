@@ -42,10 +42,14 @@ public class Flink09_Transform_KeyBy {
         // 根据 位置索引 分组 => 无法推断类型，所以key返回的是 tuple
 //        KeyedStream<WaterSensor, Tuple> resultKS = sensorDS.keyBy(0);
         // 根据 属性名称 分组 => 无法推断类型，所以key返回的是 tuple
-//        KeyedStream<WaterSensor, Tuple> resultKS = sensorDS.keyBy("id");
+        // 使用要求：
+        // 1、实体类所有变量都是public
+        // 2、keyby用到的变量不能是布尔类型的
+        // 3、添加无参构造函数
+        KeyedStream<WaterSensor, Tuple> resultKS = sensorDS.keyBy("id");
 //        KeyedStream<WaterSensor, String> resultKS = sensorDS.keyBy(new MyKeySelecor());
-        KeyedStream<WaterSensor, String> resultKS = sensorDS
-                .keyBy(data -> data.getId());
+//        KeyedStream<WaterSensor, String> resultKS = sensorDS
+//                .keyBy(data -> data.getId());
 
         // TODO 源码分析
 //        默认的 MAX_PARALLELISM = 128
