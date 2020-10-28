@@ -37,14 +37,14 @@ public class Flink05_Source_MySource {
      */
     public static class MySourceFunction implements SourceFunction<WaterSensor> {
 
-        private boolean flag = true;
+        private static boolean flag = true;
 
         @Override
         public void run(SourceContext<WaterSensor> ctx) throws Exception {
 
             Random random = new Random();
-
             while (flag) {
+                System.identityHashCode(flag);
                 WaterSensor waterSensor = new WaterSensor(
                         "sensor_" + random.nextInt(3),
                         System.currentTimeMillis(),
