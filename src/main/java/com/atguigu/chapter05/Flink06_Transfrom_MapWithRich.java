@@ -20,11 +20,11 @@ public class Flink06_Transfrom_MapWithRich {
     public static void main(String[] args) throws Exception {
         // 0.创建执行环境
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setParallelism(1);
+        env.setParallelism(2);
 
         // 1.读取数据
-//        DataStreamSource<String> fileDS = env.readTextFile("input/sensor-data.log");
-        DataStreamSource<String> fileDS = env.socketTextStream("localhost", 9999);
+        DataStreamSource<String> fileDS = env.readTextFile("input/sensor-data.log");
+//        DataStreamSource<String> fileDS = env.socketTextStream("localhost", 9999);
 
         // 2.map
         SingleOutputStreamOperator<WaterSensor> resultDS = fileDS.map(new MyRichMapFunction());
