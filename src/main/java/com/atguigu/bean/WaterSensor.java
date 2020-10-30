@@ -12,11 +12,11 @@ import lombok.*;
 @Data
 public class WaterSensor {
     // 传感器id
-    public String id;
+    private String id;
     // 时间戳
-    public Long ts;
+    private Long ts;
     // 空高：为了方便，这里认为是水位
-    public Integer vc;
+    private Integer vc;
 
     public WaterSensor() {
     }

@@ -1,6 +1,8 @@
 package com.atguigu.chapter05;
 
 import com.atguigu.bean.UserBehavior;
+import org.apache.flink.api.common.accumulators.Accumulator;
+import org.apache.flink.api.common.accumulators.LongCounter;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
