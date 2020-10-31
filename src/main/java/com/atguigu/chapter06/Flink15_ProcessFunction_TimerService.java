@@ -6,12 +6,10 @@ import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.functions.timestamps.AscendingTimestampExtractor;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
-import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.windowing.time.Time;
-import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
-import org.apache.flink.util.OutputTag;
 
 /**
  * TODO
@@ -20,7 +18,7 @@ import org.apache.flink.util.OutputTag;
  * @version 1.0
  * @date 2020/10/30 14:34
  */
-public class Flink14_ProcessFunction_Keyed {
+public class Flink15_ProcessFunction_TimerService {
     public static void main(String[] args) throws Exception {
         // 0.创建执行环境
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -39,9 +37,15 @@ public class Flink14_ProcessFunction_Keyed {
                     }
                 })
                 .assignTimestampsAndWatermarks(
-                        new BoundedOutOfOrdernessTimestampExtractor<WaterSensor>(Time.seconds(3)) {
+//                        new BoundedOutOfOrdernessTimestampExtractor<WaterSensor>(Time.seconds(3)) {
+//                            @Override
+//                            public long extractTimestamp(WaterSensor element) {
+//                                return element.getTs() * 1000L;
+//                            }
+//                        }
+                        new AscendingTimestampExtractor<WaterSensor>() {
                             @Override
-                            public long extractTimestamp(WaterSensor element) {
+                            public long extractAscendingTimestamp(WaterSensor element) {
                                 return element.getTs() * 1000L;
                             }
                         }
@@ -54,28 +58,28 @@ public class Flink14_ProcessFunction_Keyed {
                         new KeyedProcessFunction<String, WaterSensor, String>() {
                             @Override
                             public void processElement(WaterSensor value, Context ctx, Collector<String> out) throws Exception {
-                                // 获取时间戳：数据的事件时间
-//                                ctx.timestamp();
-                                System.out.println(value + ",ts=" + ctx.timestamp() + ",wm=" + ctx.timerService().currentWatermark());
-//                                out.collect();
+                                // 注册一个定时器
+//                                ctx.timerService().registerProcessingTimeTimer(ctx.timerService().currentProcessingTime() + 5000L);
+                                ctx.timerService().registerEventTimeTimer(ctx.timestamp() + 5000L);
+                                // TODO 创建 & 触发 源码分析
+                                //  InternalTimerServiceImpl.registerEventTimeTimer()
+                                //	    => 注册 eventTimeTimersQueue.add(new TimerHeapInternalTimer<>(time, (K) keyContext.getCurrentKey(), namespace));
+                                //		    =》 为了避免重复注册、重复创建对象，注册定时器的时候，判断一下是否已经注册过了
+                                //
+                                //  InternalTimerServiceImpl.advanceWatermark()
+                                //	    => 触发 timer.getTimestamp() <= time ==========> 定时的时间 <= watermark
+                            }
 
-                                // 获取当前 key
-//                                ctx.getCurrentKey();
-                                // 把数据放入侧输出流 => 第一个参数：标签对象； 第二个参数，要放入侧输出流的数据
-//                                ctx.output(, );
-
-                                // 定时器
-                                // 获取时间： 处理时间、 watermark
-//                                ctx.timerService().currentWatermark();
-//                                ctx.timerService().currentProcessingTime();
-//
-//                                ctx.timerService().registerEventTimeTimer();
-//                                ctx.timerService().registerProcessingTimeTimer();
-//
-//                                ctx.timerService().deleteEventTimeTimer();
-//                                ctx.timerService().deleteProcessingTimeTimer();
-
-
+                            /**
+                             * 定时器触发，要执行什么操作
+                             * @param timestamp
+                             * @param ctx
+                             * @param out
+                             * @throws Exception
+                             */
+                            @Override
+                            public void onTimer(long timestamp, OnTimerContext ctx, Collector<String> out) throws Exception {
+                                out.collect("onTimer ts=" + timestamp);
                             }
                         }
                 )

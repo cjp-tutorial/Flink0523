@@ -41,12 +41,12 @@ public class Flink13_TimeCharacteristic_TimeWindow {
 
         // TODO TimeWindow API
         WindowedStream<Tuple2<String, Integer>, String, TimeWindow> wordAndOneWS = wordAndOneKS
-//                .timeWindow(Time.seconds(5)); // 滚动窗口
+                .timeWindow(Time.seconds(5)); // 滚动窗口
 //                    .window(TumblingProcessingTimeWindows.of(Time.seconds(5)));
 //                .timeWindow(Time.seconds(5),Time.seconds(2)); // 滑动窗口
 //                .window(SlidingProcessingTimeWindows.of(Time.seconds(5), Time.seconds(2)));
 //        .window(ProcessingTimeSessionWindows.withGap(Time.seconds(3))); // 会话窗口
-        .window(EventTimeSessionWindows.withGap(Time.seconds(3)));
+//        .window(EventTimeSessionWindows.withGap(Time.seconds(3)));
 
         SingleOutputStreamOperator<Tuple2<String, Integer>> resultDS = wordAndOneWS.sum(1);
 
