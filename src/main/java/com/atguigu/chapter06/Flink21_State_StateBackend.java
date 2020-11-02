@@ -2,32 +2,51 @@ package com.atguigu.chapter06;
 
 import com.atguigu.bean.WaterSensor;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.state.ValueState;
+import org.apache.flink.api.common.state.ValueStateDescriptor;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.contrib.streaming.state.RocksDBStateBackend;
+import org.apache.flink.runtime.state.StateBackend;
+import org.apache.flink.runtime.state.filesystem.FsStateBackend;
+import org.apache.flink.runtime.state.memory.MemoryStateBackend;
 import org.apache.flink.streaming.api.TimeCharacteristic;
-import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.AssignerWithPunctuatedWatermarks;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.util.Collector;
-import org.apache.flink.util.OutputTag;
 
 import javax.annotation.Nullable;
 
 /**
- * 水位高于 50 的放入侧输出流，其他正常在 主流里
+ *
  *
  * @author cjp
  * @version 1.0
  * @date 2020/10/30 14:34
  */
-public class Flink17_ProcessFunction_SideOutput {
+public class Flink21_State_StateBackend {
 
     public static void main(String[] args) throws Exception {
         // 0.创建执行环境
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
+
+        // TODO 1.执行环境里 设置 状态后端
+        // 1.memory
+        StateBackend memoryStateBackend = new MemoryStateBackend();
+        env.setStateBackend(memoryStateBackend);
+        // 2.fs
+        StateBackend fsStateBackend = new FsStateBackend("hdfs://xxxx/xxx");
+        env.setStateBackend(fsStateBackend);
+        // 3.RocksDB
+        StateBackend rocksDBStateBackend = new RocksDBStateBackend("hdfs://xxx/xxx");
+        env.setStateBackend(rocksDBStateBackend);
+
+        // TODO 2.打开checkpoint
+        env.enableCheckpointing(3000L);
 
         // 1.读取数据
         SingleOutputStreamOperator<WaterSensor> sensorDS = env
@@ -57,31 +76,29 @@ public class Flink17_ProcessFunction_SideOutput {
                 );
 
         // 2.处理数据
-        OutputTag<String> highTag = new OutputTag<String>("high-level") {
-        };
-        SingleOutputStreamOperator<WaterSensor> resultDS = sensorDS
+        SingleOutputStreamOperator<String> resultDS = sensorDS
                 .keyBy(sensor -> sensor.getId())
                 .process(
-                        new KeyedProcessFunction<String, WaterSensor, WaterSensor>() {
+                        new KeyedProcessFunction<String, WaterSensor, String>() {
+                            // 1.定义状态；
+                            ValueState<Integer> valueState;
+
                             @Override
-                            public void processElement(WaterSensor value, Context ctx, Collector<WaterSensor> out) throws Exception {
-                                if (value.getVc() > 50) {
-                                    // TODO 侧输出流
-                                    // 1.类型可以和主流不一致
-                                    // 2.通常可以用来：在不影响 主流 逻辑的 情况下，过滤、发现异常数据
-                                    ctx.output(highTag, "水位值高于50米！！！快跑！！");
-//                                    out.collect(value);
-                                } else {
-                                    out.collect(value);
-                                }
+                            public void open(Configuration parameters) throws Exception {
+                                // 2. 在open中初始化状态
+                                valueState = getRuntimeContext().getState(new ValueStateDescriptor<Integer>("value-state", Integer.class));
+                            }
+
+                            @Override
+                            public void processElement(WaterSensor value, Context ctx, Collector<String> out) throws Exception {
+                                out.collect("当前key=" + ctx.getCurrentKey() + ",值状态保存的上一次水位值=" + valueState.value());
+                                // 保存上一条数据的水位值，保存到状态里
+                                valueState.update(value.getVc());
                             }
                         }
                 );
 
-        resultDS.print("main-stream");
-
-        DataStream<String> sideOutput = resultDS.getSideOutput(highTag);
-        sideOutput.print("side-output");
+        resultDS.print();
 
 
         env.execute();
