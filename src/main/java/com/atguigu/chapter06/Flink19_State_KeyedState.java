@@ -28,7 +28,7 @@ public class Flink19_State_KeyedState {
     public static void main(String[] args) throws Exception {
         // 0.创建执行环境
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setParallelism(1);
+        env.setParallelism(2);
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
         // 1.读取数据
@@ -65,6 +65,7 @@ public class Flink19_State_KeyedState {
                         new KeyedProcessFunction<String, WaterSensor, String>() {
                             // 1.定义状态；
                             ValueState<Integer> valueState;
+                            Integer vc = 0;
 
                             @Override
                             public void open(Configuration parameters) throws Exception {
@@ -74,9 +75,12 @@ public class Flink19_State_KeyedState {
 
                             @Override
                             public void processElement(WaterSensor value, Context ctx, Collector<String> out) throws Exception {
-                                out.collect("当前key=" + ctx.getCurrentKey() + ",值状态保存的上一次水位值=" + valueState.value());
+//                                out.collect("当前key=" + ctx.getCurrentKey() + ",值状态保存的上一次水位值=" + valueState.value());
+                                out.collect("当前key=" + ctx.getCurrentKey() + ",变量保存的上一次水位值=" + vc);
                                 // 保存上一条数据的水位值，保存到状态里
-                                valueState.update(value.getVc());
+//                                valueState.update(value.getVc());
+//                                System.out.println(vc);
+                                vc = value.getVc();
                             }
                         }
                 );

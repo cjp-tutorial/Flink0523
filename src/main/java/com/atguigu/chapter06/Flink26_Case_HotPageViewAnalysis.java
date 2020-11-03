@@ -21,11 +21,9 @@ import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
 
+import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 /**
  * 实时热门页面浏览排名 -- 每隔5s 输出 最近 10 minutes
@@ -88,12 +86,80 @@ public class Flink26_Case_HotPageViewAnalysis {
         );
 
         // 2.4 按照 窗口结束时间 分组
-
+        KeyedStream<PageCountWithWindow, Long> aggKS = aggDS.keyBy(data -> data.getWindowEnd());
 
         // 2.5 用 process 排序
+        aggKS.process(new TopNPageView(5)).print();
 
 
         // 4.执行
         env.execute();
+    }
+
+    public static class TopNPageView extends KeyedProcessFunction<Long, PageCountWithWindow, String> {
+        ListState<PageCountWithWindow> dataList;
+        ValueState<Long> timerTs;
+
+        private int threshold;
+
+        public TopNPageView(int threshold) {
+            this.threshold = threshold;
+        }
+
+        @Override
+        public void open(Configuration parameters) throws Exception {
+            dataList = getRuntimeContext().getListState(new ListStateDescriptor<PageCountWithWindow>("dataList", PageCountWithWindow.class));
+            timerTs = getRuntimeContext().getState(new ValueStateDescriptor<Long>("timerTs", Long.class, 0L));
+        }
+
+        @Override
+        public void processElement(PageCountWithWindow value, Context ctx, Collector<String> out) throws Exception {
+            //先存起来
+            dataList.add(value);
+            // 数据到齐了，开始排序 => 模拟窗口的触发 => 定时器，给个延迟
+            if (timerTs.value() == 0) {
+                ctx.timerService().registerEventTimeTimer(value.getWindowEnd() + 1L);
+                timerTs.update(value.getWindowEnd() + 1L);
+            }
+        }
+
+        @Override
+        public void onTimer(long timestamp, OnTimerContext ctx, Collector<String> out) throws Exception {
+            // 从 状态 取出 数据
+            List<PageCountWithWindow> datas = new ArrayList<>();
+            for (PageCountWithWindow pageCountWithWindow : dataList.get()) {
+                datas.add(pageCountWithWindow);
+            }
+            // 清空状态
+            dataList.clear();
+            timerTs.clear();
+
+            // 排序
+            datas.sort(new Comparator<PageCountWithWindow>() {
+                @Override
+                public int compare(PageCountWithWindow o1, PageCountWithWindow o2) {
+                    long result = o2.getPageCount() - o1.getPageCount();
+                    if (result < 0) {
+                        return -1;
+                    } else if (result > 0) {
+                        return 1;
+                    } else {
+                        return 0;
+                    }
+                }
+            });
+
+            // 取前 N
+            StringBuffer resultStr = new StringBuffer();
+            Timestamp windowEndDate = new Timestamp(timestamp - 1);
+            resultStr.append("窗口结束时间:" + windowEndDate + "\n");
+
+            for (int i = 0; i < (threshold > datas.size() ? datas.size() : threshold); i++) {
+                resultStr.append("Top" + (i + 1) + ":" + datas.get(i) + "\n");
+            }
+            resultStr.append("=================================================================\n\n\n");
+            out.collect(resultStr.toString());
+
+        }
     }
 }
