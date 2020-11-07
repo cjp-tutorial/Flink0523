@@ -90,7 +90,7 @@ public class Flink11_Case_UVWithBloomFilter {
         public Tuple2<Long, BloomFilter<Long>> createAccumulator() {
             // 创建布隆过滤器
             // 第一个参数，指定类型
-            // 第二个参数，需要多少个 bit
+            // 第二个参数，预计的数据量 => 根据数据量推算出格子数
             // 第三个参数，错误率，默认是0.03，可以指定
             BloomFilter<Long> longBloomFilter = BloomFilter.create(Funnels.longFunnel(), 1000000, 0.01);
             return Tuple2.of(0L, longBloomFilter);
