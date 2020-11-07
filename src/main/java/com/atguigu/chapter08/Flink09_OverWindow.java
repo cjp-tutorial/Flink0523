@@ -7,6 +7,7 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.timestamps.AscendingTimestampExtractor;
 import org.apache.flink.table.api.EnvironmentSettings;
+import org.apache.flink.table.api.Over;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.java.StreamTableEnvironment;
 import org.apache.flink.types.Row;
@@ -18,7 +19,7 @@ import org.apache.flink.types.Row;
  * @version 1.0
  * @date 2020/11/7 9:23
  */
-public class Flink07_SQL_API {
+public class Flink09_OverWindow {
     public static void main(String[] args) throws Exception {
         // 0.创建执行环境
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -44,23 +45,6 @@ public class Flink07_SQL_API {
                         }
                 );
 
-        SingleOutputStreamOperator<WaterSensor> sensorDS1 = env
-                .readTextFile("input/sensor-data-cep.log")
-                .map(new MapFunction<String, WaterSensor>() {
-                    @Override
-                    public WaterSensor map(String value) throws Exception {
-                        String[] datas = value.split(",");
-                        return new WaterSensor(datas[0], Long.valueOf(datas[1]), Integer.valueOf(datas[2]));
-                    }
-                })
-                .assignTimestampsAndWatermarks(
-                        new AscendingTimestampExtractor<WaterSensor>() {
-                            @Override
-                            public long extractAscendingTimestamp(WaterSensor element) {
-                                return element.getTs() * 1000L;
-                            }
-                        }
-                );
 
         // 1.创建 表的执行环境,不管是 TableAPI还是SQL，都需要先做这一步
         EnvironmentSettings settings = EnvironmentSettings.newInstance()
@@ -70,29 +54,30 @@ public class Flink07_SQL_API {
         StreamTableEnvironment tableEnv = StreamTableEnvironment.create(env, settings);
 
         // 2. 把 DataStream 转成一个 Table
-        tableEnv.createTemporaryView("sensorTable", sensorDS, "id,vc,ts");
-        tableEnv.createTemporaryView("sensorTable1", sensorDS1, "id,vc,ts");
+        tableEnv.createTemporaryView("sensorTable", sensorDS, "id,vc,ts.rowtime as rt");
+//        tableEnv.createTemporaryView("sensorTable", sensorDS, "id,vc,ts.proctime as rt");
+        Table sensorTable = tableEnv.from("sensorTable");
 
-        // TODO 使用 SQL 对 Table进行操作
-        Table resultTable = tableEnv
-                .sqlQuery("select id,vc,timeeeeeees from sensorTable where id = 'sensor_1'");
-//                .sqlQuery("select " +
-//                        "id,count(id) cnt " +
-//                        "from sensorTable " +
-//                        "group by id");
-//                .sqlQuery(
-//                        "select " +
-//                                "* " +
-//                                "from sensorTable s1 " +
-//                                "right join sensorTable1 s2 " +
-//                                "on s1.id=s2.id");
-//                .sqlQuery(
-//
-//                        "select * from sensorTable " +
-//                                "union all " +
-//                                "select * from sensorTable1");
-//                .sqlQuery(
-//                        "select * from sensorTable where id not in (select id from sensorTable1)");
+
+        // TODO 使用 TableAPI实现 OverWindow
+/*        Table resultTable = sensorTable
+                .window(
+                        Over
+                                .partitionBy("id")
+                                .orderBy("rt")
+                                .preceding("UNBOUNDED_RANGE")
+                                .following("CURRENT_RANGE")
+                                .as("ow"))
+                .select("id,vc,rt,count(id) over ow");*/
+
+
+
+        // TODO 使用 SQL 实现 OverWindow
+        Table resultTable = tableEnv.sqlQuery("select " +
+                "id,vc,rt," +
+                "count(id) over(partition by id order by rt) as cnt " +
+                "from sensorTable");
+
 
         tableEnv.toRetractStream(resultTable, Row.class).print();
 

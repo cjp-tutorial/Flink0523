@@ -17,6 +17,9 @@ public class UserBehavior {
     private String behavior;
     private Long timestamp;
 
+    public UserBehavior() {
+    }
+
     public UserBehavior(Long userId, Long itemId, Integer categoryId, String behavior, Long timestamp) {
         this.userId = userId;
         this.itemId = itemId;
